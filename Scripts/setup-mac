@@ -21,7 +21,7 @@ brew install node
 ## For testing with lit
 brew install python3
 ## To build DafnyRef.pdf
-brew install --cask basictex
+brew install --cask https://mirror.mwt.me/ctan/systems/mac/mactex/BasicTeX.pkg
 brew install pandoc
 eval "$(/usr/libexec/path_helper)"
 sudo tlmgr update --self
