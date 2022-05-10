@@ -1047,7 +1047,6 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
         // Not using datatype updates below to ensure that we get a warning if a
         // type gets new arguments
         match e {
-          // Expressions
           case Var(_) => e
           case Literal(lit_) => e
           case Abs(vars, body) => Expr.Abs(vars, Map_Expr(body, tr))
