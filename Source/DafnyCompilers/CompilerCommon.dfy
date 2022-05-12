@@ -181,7 +181,8 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
         | Literal(lit: Literal)
         | Abs(vars: seq<string>, body: Expr)
         | Apply(aop: ApplyOp, args: seq<Expr>)
-        | Block(stmts: seq<Expr>)
+        | Block(stmts: seq<Expr>) // DISCUSS alias for bind with no vars?
+        | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr) // DISCUSS: Apply + Abs?
         | If(cond: Expr, thn: Expr, els: Expr)
       {
         function method Depth() : nat {
@@ -196,6 +197,8 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
               Seq.MaxF(var f := (e: Expr) requires e in args => e.Depth(); f, args, 0)
             case Block(stmts) =>
               Seq.MaxF(var f := (e: Expr) requires e in stmts => e.Depth(); f, stmts, 0)
+            case Bind(vars, vals, body) =>
+              Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals + [body], 0)
             case If(cond, thn, els) =>
               Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
           }
@@ -210,6 +213,7 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
             case Abs(vars, body) => [body]
             case Apply(aop, exprs) => exprs
             case Block(exprs) => exprs
+            case Bind(vars, vals, body) => vals + [body]
             case If(cond, thn, els) => [cond, thn, els]
           }
         }
@@ -229,6 +233,8 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
             |es| >= 1 // Needs a function to call
           case Apply(Eager(Builtin(Display(ty))), es) =>
             ty.Collection? && ty.finite
+          case Bind(vars, vals, _) =>
+            |vars| == |vals|
           case _ => true
         }
       }
@@ -247,6 +253,8 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
             e'.Block? && |stmts| == |e'.stmts|
           case If(cond, thn, els) =>
             e'.If?
+          case Bind(vars, vals, body) =>
+            e'.Bind? && |vars| == |e'.vars| && |vals| == |e'.vals|
         }
       }
 
@@ -649,6 +657,25 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
       Success(DE.Abs(bvars, body))
     }
 
+    function method TranslateLetExpr(le: C.LetExpr)
+      : (e: TranslationResult<WfExpr>)
+      reads *
+      decreases ASTHeight(le), 0
+    {
+      :- Need(le.Exact, UnsupportedExpr(le));
+      var lhss := ListUtils.ToSeq(le.LHSs);
+      var bvs :- Seq.MapResult(lhss, (pat: C.CasePattern<C.BoundVar>) reads * =>
+        :- Need(pat.Var != null, UnsupportedExpr(le));
+        Success(TypeConv.AsString(pat.Var.Name)));
+      var rhss := ListUtils.ToSeq(le.RHSs);
+      var elems :- Seq.MapResult(rhss, e requires e in rhss reads * =>
+        assume Decreases(e, le); TranslateExpression(e));
+      :- Need(|bvs| == |elems|, UnsupportedExpr(le));
+      assume Decreases(le.Body, le);
+      var body :- TranslateExpression(le.Body);
+      Success(DE.Bind(bvs, elems, body))
+    }
+
     function method TranslateConcreteSyntaxExpression(ce: C.ConcreteSyntaxExpression)
       : (e: TranslationResult<WfExpr>)
       reads *
@@ -702,10 +729,12 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
         TranslateSeqUpdateExpr(c as C.SeqUpdateExpr)
       else if c is C.LambdaExpr then
         TranslateLambdaExpr(c as C.LambdaExpr)
-      else if c is C.ConcreteSyntaxExpression then
-        TranslateConcreteSyntaxExpression(c as C.ConcreteSyntaxExpression)
+      else if c is C.LetExpr then
+        TranslateLetExpr(c as C.LetExpr)
       else if c is C.ITEExpr then
         TranslateITEExpr(c as C.ITEExpr)
+      else if c is C.ConcreteSyntaxExpression then
+        TranslateConcreteSyntaxExpression(c as C.ConcreteSyntaxExpression)
       else Failure(UnsupportedExpr(c))
     }
 
@@ -890,8 +919,8 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
       module Rec refines Base { // DISCUSS
         function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
           P(e) &&
-          // https://github.com/dafny-lang/dafny/issues/2107
-          // https://github.com/dafny-lang/dafny/issues/2109
+          // BUG(https://github.com/dafny-lang/dafny/issues/2107)
+          // BUG(https://github.com/dafny-lang/dafny/issues/2109)
           // Duplicated to avoid mutual recursion with AllChildren_Expr
           match e {
             case Var(_) => true
@@ -899,7 +928,10 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
             case Abs(vars, body) => All_Expr(body, P)
             case Apply(_, exprs) =>
               Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
-            case Block(exprs) => Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+            case Block(exprs) =>
+              Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+            case Bind(vars, vals, body) =>
+              Seq.All((e requires e in vals => All_Expr(e, P)), vals + [body])
             case If(cond, thn, els) =>
               All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
           }
@@ -912,7 +944,10 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
             case Abs(vars, body) => All_Expr(body, P)
             case Apply(_, exprs) =>
               Seq.All(e requires e in exprs => All_Expr(e, P), exprs)
-            case Block(exprs) => Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+            case Block(exprs) =>
+              Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
+            case Bind(vars, vals, body) =>
+              Seq.All((e requires e in vals => All_Expr(e, P)), vals + [body])
             case If(cond, thn, els) =>
               All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
           }
@@ -1081,6 +1116,12 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
             var e' := Expr.Block(exprs');
             assert Exprs.ConstructorsMatch(e, e');
             e'
+          case Bind(vars, vals, body) =>
+            var vals' := Seq.Map(e requires e in vals => Map_Expr(e, tr), vals);
+            Predicates.Map_All_IsMap(e requires e in vals => Map_Expr(e, tr), vals);
+            var e' := Expr.Bind(vars, vals', Map_Expr(body, tr));
+            assert Exprs.ConstructorsMatch(e, e');
+            e'
           case If(cond, thn, els) =>
             var e' := Expr.If(Map_Expr(cond, tr), Map_Expr(thn, tr), Map_Expr(els, tr));
             assert Exprs.ConstructorsMatch(e, e');
@@ -1232,6 +1273,10 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
           var exprs' := Seq.Map(e requires e in exprs => EliminateNegatedBinops_Expr_direct(e), exprs);
           Predicates.Map_All_IsMap(e requires e in exprs => EliminateNegatedBinops_Expr_direct(e), exprs);
           Expr.Block(exprs')
+        case Bind(vars, vals, body) =>
+          var vals' := Seq.Map(e requires e in vals => EliminateNegatedBinops_Expr_direct(e), vals);
+          Predicates.Map_All_IsMap(e requires e in vals => EliminateNegatedBinops_Expr_direct(e), vals);
+          Exprs.Bind(vars, vals, EliminateNegatedBinops_Expr_direct(body))
         case If(cond, thn, els) =>
           Expr.If(EliminateNegatedBinops_Expr_direct(cond),
                   EliminateNegatedBinops_Expr_direct(thn),
