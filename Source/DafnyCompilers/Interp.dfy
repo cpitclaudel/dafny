@@ -145,7 +145,6 @@ module Interp {
 
   function method InterpExpr(e: Expr, env: Environment, ctx: State := State.Empty)
     : (r: InterpResult<Value>)
-    requires SupportsInterp(e)
     decreases env.fuel, e, 1
   {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
@@ -226,7 +225,6 @@ module Interp {
 
   function method InterpExprWithType(e: Expr, ty: Type, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
-    requires SupportsInterp(e)
     decreases env.fuel, e, 2
     ensures r.Success? ==> r.value.ret.HasType(ty)
   {
@@ -267,7 +265,6 @@ module Interp {
 
   function method InterpExprs(es: seq<Expr>, env: Environment, ctx: State)
     : (r: InterpResult<seq<Value>>)
-    requires forall e | e in es :: SupportsInterp(e)
     decreases env.fuel, es
     ensures r.Success? ==> |r.value.ret| == |es|
   { // TODO generalize into a FoldResult function
@@ -292,7 +289,7 @@ module Interp {
 
   function method InterpLazy(e: Expr, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
-    requires e.Apply? && e.aop.Lazy? && SupportsInterp(e)
+    requires e.Apply? && e.aop.Lazy?
     decreases env.fuel, e, 0
   {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
@@ -311,7 +308,7 @@ module Interp {
   // matching intuition.
   function method InterpLazy_Eagerly(e: Expr, env: Environment, ctx: State)
     : (r: InterpResult<Value>)
-    requires e.Apply? && e.aop.Lazy? && SupportsInterp(e)
+    requires e.Apply? && e.aop.Lazy?
     decreases env.fuel, e, 0
   {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
@@ -328,13 +325,13 @@ module Interp {
   }
 
   lemma InterpLazy_Complete(e: Expr, env: Environment, ctx: State)
-    requires e.Apply? && e.aop.Lazy? && SupportsInterp(e)
+    requires e.Apply? && e.aop.Lazy?
     requires InterpLazy(e, env, ctx).Failure?
     ensures InterpLazy_Eagerly(e, env, ctx) == InterpLazy(e, env, ctx)
   {}
 
   lemma InterpLazy_Eagerly_Sound(e: Expr, env: Environment, ctx: State)
-    requires e.Apply? && e.aop.Lazy? && SupportsInterp(e)
+    requires e.Apply? && e.aop.Lazy?
     requires InterpLazy_Eagerly(e, env, ctx).Success?
     ensures InterpLazy_Eagerly(e, env, ctx) == InterpLazy(e, env, ctx)
   {}
