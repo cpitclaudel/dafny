@@ -45,7 +45,7 @@ module DafnyCompilerCommon.Translator {
       }
     }
 
-    type WfExpr = e: DE.Expr | P.All_Expr(e, DE.WellFormed)
+    type Expr = e: DE.Expr | P.All_Expr(e, DE.WellFormed)
       witness DE.Block([])
 
     type TranslationResult<+A> =
@@ -183,7 +183,7 @@ module DafnyCompilerCommon.Translator {
       (map k | k in EagerBinopMap :: DE.Eager(DE.BinaryOp(EagerBinopMap[k])))
 
     function method TranslateIdentifierExpr(ie: C.IdentifierExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
     {
       Success(DE.Var(TypeConv.AsString(ie.Name)))
@@ -197,7 +197,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateUnary(u: C.UnaryExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       decreases ASTHeight(u), 0
       reads *
     {
@@ -212,7 +212,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateBinary(b: C.BinaryExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       decreases ASTHeight(b), 0
       reads *
     {
@@ -227,7 +227,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateLiteral(l: C.LiteralExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
     {
       if l.Value is Boolean then
@@ -251,7 +251,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateApplyExpr(ae: C.ApplyExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(ae), 0
     {
@@ -264,7 +264,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateMemberSelect(obj: C.Expression, fullName: System.String)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(obj), 3
     {
@@ -277,7 +277,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateMemberSelectExpr(me: C.MemberSelectExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(me), 0
     {
@@ -286,7 +286,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateFunctionCallExpr(fce: C.FunctionCallExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(fce), 0
     {
@@ -299,7 +299,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateDatatypeValue(dtv: C.DatatypeValue)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(dtv), 0
     {
@@ -314,7 +314,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateDisplayExpr(de: C.DisplayExpression)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(de), 0
     {
@@ -327,7 +327,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateExpressionPair(mde: C.MapDisplayExpr, ep: C.ExpressionPair)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       requires Math.Max(ASTHeight(ep.A), ASTHeight(ep.B)) < ASTHeight(mde)
       decreases ASTHeight(mde), 0
@@ -341,7 +341,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateMapDisplayExpr(mde: C.MapDisplayExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(mde), 1
     {
@@ -354,10 +354,9 @@ module DafnyCompilerCommon.Translator {
       Success(DE.Apply(DE.Eager(DE.Builtin(DE.Display(ty))), elems))
     }
 
-    function method TranslateSeqSelectExpr(se: C.SeqSelectExpr): (e: TranslationResult<DE.T>)
+    function method TranslateSeqSelectExpr(se: C.SeqSelectExpr): (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(se), 0
-      ensures e.Success? ==> P.All_Expr(e.value, DE.WellFormed)
     { // FIXME: The models that we generate do not allow for `null`
       var ty :- TranslateType(se.Seq.Type);
       :- Need(ty.Collection? && !ty.kind.Set?,
@@ -367,32 +366,37 @@ module DafnyCompilerCommon.Translator {
       :- Need(!se.SelectOne ==> ty.kind.Seq?,
               Invalid("`SeqSelect` on a map or multiset must have a single index."));
       assume Math.Max(ASTHeight(se.Seq), Math.Max(ASTHeight(se.E0), ASTHeight(se.E1))) < ASTHeight(se);
-      var (op, args) :=
-        match ty.kind { // FIXME AST gen should produce `Expression?` not `Expression`
-          case Seq() =>
-            if se.SelectOne then
-              assert se.E1 != null;
-              (DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqSelect)), [se.Seq, se.E0])
-            else if se.E1 == null then
-              (DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqDrop)), [se.Seq, se.E0])
-            else if se.E0 == null then
-              (DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqTake)), [se.Seq, se.E1])
-            else
-              (DE.TernaryOp(DE.TernaryOps.Sequences(DE.TernaryOps.SeqSubseq)), [se.Seq, se.E0, se.E1])
-          case Map(_) =>
-            assert se.SelectOne && se.E1 == null;
-            (DE.BinaryOp(DE.BinaryOps.Maps(DE.BinaryOps.MapSelect)), [se.Seq, se.E0])
-          case Multiset() =>
-            assert se.SelectOne && se.E1 == null;
-            (DE.BinaryOp(DE.BinaryOps.Multisets(DE.BinaryOps.MultisetSelect)), [se.Seq, se.E0])
-        };
-      assert forall e' | e' in args :: e' in {se.Seq, se.E0, se.E1};
-      var args :- Seq.MapResult(args, e requires e in args reads * => TranslateExpression(e));
-      Success(DE.Apply(DE.Eager(op), args))
+      var recv :- TranslateExpression(se.Seq);
+      var eager := (op, args) => Success(DE.Apply(DE.Eager(op), args));
+      match ty.kind { // FIXME AST gen should produce `Expression?` not `Expression`
+        case Seq() =>
+          if se.SelectOne then
+            assert se.E1 == null;
+            var e0 :- TranslateExpression(se.E0);
+            eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqSelect)), [recv, e0])
+          else if se.E1 == null then
+            var e0 :- TranslateExpression(se.E0);
+            eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqDrop)), [recv, e0])
+          else if se.E0 == null then
+            var e1 :- TranslateExpression(se.E1);
+            eager(DE.BinaryOp(DE.BinaryOps.Sequences(DE.BinaryOps.SeqTake)), [recv, e1])
+          else
+            var e0 :- TranslateExpression(se.E0);
+            var e1 :- TranslateExpression(se.E1);
+            eager(DE.TernaryOp(DE.TernaryOps.Sequences(DE.TernaryOps.SeqSubseq)), [recv, e0, e1])
+        case Map(_) =>
+          assert se.SelectOne && se.E1 == null;
+          var e0 :- TranslateExpression(se.E0);
+          eager(DE.BinaryOp(DE.BinaryOps.Maps(DE.BinaryOps.MapSelect)), [recv, e0])
+        case Multiset() =>
+          assert se.SelectOne && se.E1 == null;
+          var e0 :- TranslateExpression(se.E0);
+          eager(DE.BinaryOp(DE.BinaryOps.Multisets(DE.BinaryOps.MultisetSelect)), [recv, e0])
+      }
     }
 
     function method TranslateSeqUpdateExpr(se: C.SeqUpdateExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(se), 0
     {
@@ -411,7 +415,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateLambdaExpr(le: C.LambdaExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(le), 0
     {
@@ -423,7 +427,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateLetExpr(le: C.LetExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(le), 0
     {
@@ -442,7 +446,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateConcreteSyntaxExpression(ce: C.ConcreteSyntaxExpression)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(ce), 0
     {
@@ -451,7 +455,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateITEExpr(ie: C.ITEExpr)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(ie), 0
     {
@@ -466,7 +470,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateExpression(c: C.Expression)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(c), 2
     {
@@ -506,7 +510,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslatePrintStmt(p: C.PrintStmt)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(p), 0
     {
@@ -515,7 +519,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateBlockStmt(b: C.BlockStmt)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(b), 0
     {
@@ -526,7 +530,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateIfStmt(i: C.IfStmt)
-      : (e: TranslationResult<WfExpr>)
+      : (e: TranslationResult<Expr>)
       reads *
       decreases ASTHeight(i), 0
     {
@@ -541,7 +545,7 @@ module DafnyCompilerCommon.Translator {
     }
 
     function method TranslateStatement(s: C.Statement)
-      : TranslationResult<WfExpr>
+      : TranslationResult<Expr>
       reads *
       decreases ASTHeight(s), 1
     {

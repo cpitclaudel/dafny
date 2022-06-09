@@ -33,18 +33,15 @@ module DafnyCompilerCommon.Predicates {
     datatype Transformer_<!A(!new), !B> =
       TR(f: A --> B, ghost Post: B -> bool)
     {
-      ghost const Valid? := forall a | f.requires(a) :: Post(f(a))
+      predicate Valid?() {
+        forall a | f.requires(a) :: Post(f(a))
+      }
     }
 
-    type Transformer<!A(!new), !B(0)> = tr: Transformer_<A, B> | tr.Valid?
+    type Transformer<!A(!new), !B(0)> = tr: Transformer_<A, B> | tr.Valid?()
       witness *
 
     type ExprTransformer = Transformer<Expr, Expr>
-
-    lemma Map_All_TR<A(!new), B(00)>(tr: Transformer<A, B>, ts: seq<A>)
-      requires forall x | x in ts :: tr.f.requires(x)
-      ensures Seq.All(tr.Post, Seq.Map(tr.f, ts))
-    {}
 
     module Shallow {
       import opened Lib
@@ -121,7 +118,8 @@ module DafnyCompilerCommon.Predicates {
             case Block(exprs) =>
               Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
             case Bind(vars, vals, body) =>
-              Seq.All((e requires e in vals => All_Expr(e, P)), vals + [body])
+              && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
+              && All_Expr(body, P)
             case If(cond, thn, els) =>
               All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
           }
@@ -137,7 +135,8 @@ module DafnyCompilerCommon.Predicates {
             case Block(exprs) =>
               Seq.All((e requires e in exprs => All_Expr(e, P)), exprs)
             case Bind(vars, vals, body) =>
-              Seq.All((e requires e in vals => All_Expr(e, P)), vals + [body])
+              && Seq.All((e requires e in vals => All_Expr(e, P)), vals)
+              && All_Expr(body, P)
             case If(cond, thn, els) =>
               All_Expr(cond, P) && All_Expr(thn, P) && All_Expr(els, P)
           }

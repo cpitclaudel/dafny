@@ -49,19 +49,6 @@ module DafnyCompilerCommon.Transforms {
       !IsNegatedBinopExpr(e)
     }
 
-    // function method EliminateNegatedBinops_Expr1(e: Exprs.T) : (e': Exprs.T)
-    //   ensures NotANegatedBinopExpr(e')
-    // {
-    //   match e {
-    //     case Binary(bop, e0, e1) =>
-    //       if IsNegatedBinop(bop) then
-    //         Expr.UnaryOp(UnaryOps.BoolNot, Expr.Binary(FlipNegatedBinop(bop), e0, e1))
-    //       else
-    //         Expr.Binary(bop, e0, e1)
-    //     case _ => e
-    //   }
-    // }
-
     function method EliminateNegatedBinops_Expr1(e: Exprs.T) : (e': Exprs.T)
       ensures NotANegatedBinopExpr(e')
     {

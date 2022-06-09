@@ -206,7 +206,10 @@ module DafnyCompilerCommon.AST {
             case Block(stmts) =>
               Seq.MaxF(var f := (e: Expr) requires e in stmts => e.Depth(); f, stmts, 0)
             case Bind(vars, vals, body) =>
-              Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals + [body], 0)
+              Math.Max(
+                Seq.MaxF(var f := (e: Expr) requires e in vals => e.Depth(); f, vals, 0),
+                body.Depth()
+              )
             case If(cond, thn, els) =>
               Math.Max(cond.Depth(), Math.Max(thn.Depth(), els.Depth()))
           }
