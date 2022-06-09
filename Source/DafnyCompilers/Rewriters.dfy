@@ -1,20 +1,8 @@
-include "CSharpDafnyASTModel.dfy"
-include "CSharpInterop.dfy"
-include "CSharpDafnyInterop.dfy"
-include "CSharpDafnyASTInterop.dfy"
 include "Library.dfy"
-include "StrTree.dfy"
 include "AST.dfy"
-include "Translator.dfy"
 include "Predicates.dfy"
 
 module DafnyCompilerCommon.Rewriters {
-    import Lib
-    import opened AST
-    import opened StrTree
-    import opened Lib.Datatypes
-    import opened CSharpInterop
-
     module Shallow {
       import opened Lib
       import opened AST

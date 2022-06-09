@@ -4,7 +4,7 @@ include "Predicates.dfy"
 include "Rewriters.dfy"
 
 module DafnyCompilerCommon.Transforms {
-  module FlipBinops {
+  module FlipNegatedBinops {
     import Lib
     import opened AST
     import opened Lib.Datatypes

@@ -1,7 +1,8 @@
 include "../CSharpDafnyASTModel.dfy"
 include "../CSharpInterop.dfy"
 include "../CSharpDafnyInterop.dfy"
-include "../CompilerCommon.dfy"
+include "../Translator.dfy"
+include "../Transforms.dfy"
 include "../Library.dfy"
 include "../StrTree.dfy"
 
@@ -10,15 +11,15 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
   import opened CSharpDafnyInterop
   import opened Microsoft.Dafny
   import StrTree
-  import DafnyCompilerCommon.Simplifier
   import DafnyCompilerCommon.Translator
+  import opened DafnyCompilerCommon.Transforms.FlipNegatedBinops
 
   module Compiler {
     import opened StrTree_ = StrTree
     import opened CSharpDafnyInterop
     import opened DafnyCompilerCommon.AST
+    import opened DafnyCompilerCommon.Transforms.FlipNegatedBinops
     import DafnyCompilerCommon.Predicates
-    import DafnyCompilerCommon.Simplifier
     import opened Predicates.Deep
 
     function method CompileType(t: Type): StrTree {
@@ -98,7 +99,7 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
     }
 
     function method CompileBinaryExpr(op: BinaryOp, c0: StrTree, c1: StrTree) : StrTree
-      requires !Simplifier.IsNegatedBinop(op)
+      requires !FlipNegatedBinops.IsNegatedBinop(op)
     {
       var fmt := str requires countFormat(str) == 2 =>
         Format(str, [c0, c1]); // Cute use of function precondition
@@ -178,18 +179,18 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
 
     function method CompilePrint(e: Expr) : StrTree
       decreases e, 1
-      requires All_Expr(e, Simplifier.NotANegatedBinopExpr)
+      requires All_Expr(e, FlipNegatedBinops.NotANegatedBinopExpr)
       requires All_Expr(e, Exprs.WellFormed)
     {
       StrTree_.Seq([Call(Str("DafnyRuntime.Helpers.Print"), [CompileExpr(e)]), Str(";")])
     }
 
     function method CompileExpr(e: Expr) : StrTree
-      requires Deep.All_Expr(e, Simplifier.NotANegatedBinopExpr)
+      requires Deep.All_Expr(e, FlipNegatedBinops.NotANegatedBinopExpr)
       requires Deep.All_Expr(e, Exprs.WellFormed)
       decreases e, 0
     {
-      Predicates.Deep.AllImpliesChildren(e, Simplifier.NotANegatedBinopExpr);
+      Predicates.Deep.AllImpliesChildren(e, FlipNegatedBinops.NotANegatedBinopExpr);
       Predicates.Deep.AllImpliesChildren(e, Exprs.WellFormed);
       match e {
         case Var(_) =>
@@ -219,6 +220,8 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
           }
         case Block(exprs) =>
           Concat("\n", Lib.Seq.Map(e requires e in exprs => CompileExpr(e), exprs))
+        case Bind(_, _, _) =>
+          Unsupported
         case If(cond, thn, els) =>
           var cCond := CompileExpr(cond);
           var cThn := CompileExpr(thn);
@@ -233,7 +236,7 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
     }
 
     function method CompileMethod(m: Method) : StrTree
-      requires Deep.All_Method(m, Simplifier.NotANegatedBinopExpr)
+      requires Deep.All_Method(m, FlipNegatedBinops.NotANegatedBinopExpr)
       requires Deep.All_Method(m, Exprs.WellFormed)
     {
       match m {
@@ -242,7 +245,7 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
     }
 
     function method CompileProgram(p: Program) : StrTree
-      requires Deep.All_Program(p, Simplifier.NotANegatedBinopExpr)
+      requires Deep.All_Program(p, FlipNegatedBinops.NotANegatedBinopExpr)
       requires Deep.All_Program(p, Exprs.WellFormed)
     {
       match p {
@@ -251,7 +254,7 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
     }
 
     method AlwaysCompileProgram(p: Program) returns (st: StrTree)
-      requires Deep.All_Program(p, Simplifier.NotANegatedBinopExpr)
+      requires Deep.All_Program(p, FlipNegatedBinops.NotANegatedBinopExpr)
     {
       // TODO: this property is tedious to propagate so isn't complete yet
       if Deep.All_Program(p, Exprs.WellFormed) {
@@ -286,7 +289,7 @@ module {:extern "DafnyInDafny.CSharp"} CSharpDafnyCompiler {
       var st := new CSharpDafnyInterop.SyntaxTreeAdapter(wr);
       match Translator.TranslateProgram(dafnyProgram) {
         case Success(translated) =>
-          var lowered := Simplifier.EliminateNegatedBinops(translated);
+          var lowered := FlipNegatedBinops.EliminateNegatedBinops(translated);
           var compiled := Compiler.AlwaysCompileProgram(lowered);
           WriteAST(st, compiled);
         case Failure(err) => // FIXME return an error
