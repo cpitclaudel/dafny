@@ -67,6 +67,9 @@ entry_points := REPL/Repl.dfy CSharp/Compiler.dfy
 typecheck:
 	$(dafny) -dafnyVerify:0 $(entry_points)
 
+verify:
+	$(dafny) -trace -verifyAllModules -vcsCores:8 $(entry_points)
+
 build: $(CompilerDLL)
 
 clean:
