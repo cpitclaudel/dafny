@@ -1,23 +1,10 @@
-include "CSharpDafnyASTModel.dfy"
-include "CSharpInterop.dfy"
-include "CSharpDafnyInterop.dfy"
-include "CSharpDafnyASTInterop.dfy"
 include "Library.dfy"
-include "StrTree.dfy"
 include "AST.dfy"
-include "Translator.dfy"
 include "Predicates.dfy"
 include "Rewriters.dfy"
 
-module {:extern "DafnyInDafny"} DafnyCompilerCommon {
-  import System
-  import CSharpDafnyASTModel
-  import opened CSharpInterop
-  import opened CSharpDafnyInterop
-  import opened Microsoft.Dafny
-  import StrTree
-
-  module Simplifier {
+module DafnyCompilerCommon.Transforms {
+  module FlipBinops {
     import Lib
     import opened AST
     import opened Lib.Datatypes
