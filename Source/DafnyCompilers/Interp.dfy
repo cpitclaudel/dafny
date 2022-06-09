@@ -143,8 +143,14 @@ module Interp {
     Success(Return(v, ctx))
   }
 
-  function method InterpExpr(e: Expr, env: Environment, ctx: State := State.Empty)
-    : (r: InterpResult<Value>)
+  function method Eval(e: Expr, env: Environment, ctx: State)
+    : InterpResult<Value>
+  {
+    InterpExpr(e, env, ctx)
+  }
+
+  function method InterpExpr(e: Expr, env: Environment, ctx: State)
+    : InterpResult<Value>
     decreases env.fuel, e, 1
   {
     Predicates.Deep.AllImpliesChildren(e, SupportsInterp1);
@@ -275,7 +281,9 @@ module Interp {
       Success(Return([v] + vs, ctx))
   }
 
-  function method InterpLiteral(a: AST.Exprs.Literal) : (v: Value) {
+  function method InterpLiteral(a: AST.Exprs.Literal)
+    : Value
+  {
     match a
       case LitBool(b: bool) => V.Bool(b)
       case LitInt(i: int) => V.Int(i)
@@ -288,7 +296,7 @@ module Interp {
   }
 
   function method InterpLazy(e: Expr, env: Environment, ctx: State)
-    : (r: InterpResult<Value>)
+    : InterpResult<Value>
     requires e.Apply? && e.aop.Lazy?
     decreases env.fuel, e, 0
   {
@@ -305,9 +313,9 @@ module Interp {
   }
 
   // Alternate implementation of ``InterpLazy``: less efficient but more closely
-  // matching intuition.
+  // matching intuition (may not terminate).
   function method InterpLazy_Eagerly(e: Expr, env: Environment, ctx: State)
-    : (r: InterpResult<Value>)
+    : InterpResult<Value>
     requires e.Apply? && e.aop.Lazy?
     decreases env.fuel, e, 0
   {
@@ -337,7 +345,7 @@ module Interp {
   {}
 
   function method InterpUnaryOp(expr: Expr, op: AST.UnaryOp, v0: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
     requires !op.MemberSelect?
   {
     match op
@@ -356,7 +364,7 @@ module Interp {
   }
 
   function method InterpBinaryOp(expr: Expr, bop: AST.BinaryOp, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
     requires !bop.BV? && !bop.Datatypes?
   {
     match bop
@@ -376,7 +384,7 @@ module Interp {
   }
 
   function method InterpBinaryNumeric(expr: Expr, op: Exprs.BinaryOps.Numeric, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match (v0, v1) {
       // Separate functions to more easily check exhaustiveness
@@ -392,7 +400,7 @@ module Interp {
   }
 
   function method InterpBinaryInt(expr: Expr, bop: AST.BinaryOps.Numeric, x1: int, x2: int)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match bop {
       case Lt() => Success(V.Bool(x1 < x2))
@@ -413,7 +421,7 @@ module Interp {
   }
 
   function method InterpBinaryNumericChar(expr: Expr, bop: AST.BinaryOps.Numeric, x1: char, x2: char)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match bop { // FIXME: These first four cases are not used (see InterpBinaryChar instead)
       case Lt() => Success(V.Bool(x1 < x2))
@@ -429,7 +437,7 @@ module Interp {
   }
 
   function method InterpBinaryReal(expr: Expr, bop: AST.BinaryOps.Numeric, x1: real, x2: real)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match bop {
       case Lt() => Success(V.Bool(x1 < x2))
@@ -445,7 +453,7 @@ module Interp {
   }
 
   function method InterpBinaryLogical(expr: Expr, op: Exprs.BinaryOps.Logical, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     :- Need(v0.Bool? && v1.Bool?, Invalid(expr));
     match op
@@ -454,7 +462,7 @@ module Interp {
   }
 
   function method InterpBinaryChar(expr: Expr, op: AST.BinaryOps.Char, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   { // FIXME eliminate distinction between GtChar and GT?
     :- Need(v0.Char? && v1.Char?, Invalid(expr));
     match op
@@ -469,7 +477,7 @@ module Interp {
   }
 
   function method InterpBinarySets(expr: Expr, op: Exprs.BinaryOps.Sets, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op
       case SetEq() => :- Need(v0.Set? && v1.Set?, Invalid(expr));
@@ -499,7 +507,7 @@ module Interp {
   }
 
   function method InterpBinaryMultisets(expr: Expr, op: Exprs.BinaryOps.Multisets, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op // DISCUSS
       case MultisetEq() => :- Need(v0.Multiset? && v1.Multiset?, Invalid(expr));
@@ -531,7 +539,7 @@ module Interp {
   }
 
   function method InterpBinarySequences(expr: Expr, op: Exprs.BinaryOps.Sequences, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op
       case SeqEq() => :- Need(v0.Seq? && v1.Seq?, Invalid(expr));
@@ -557,7 +565,7 @@ module Interp {
   }
 
   function method InterpBinaryMaps(expr: Expr, op: Exprs.BinaryOps.Maps, v0: Value, v1: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op
       case MapEq() => :- Need(v0.Map? && v1.Map?, Invalid(expr));
@@ -579,7 +587,7 @@ module Interp {
   }
 
   function method InterpTernaryOp(expr: Expr, top: AST.TernaryOp, v0: Value, v1: Value, v2: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match top
       case Sequences(op) =>
@@ -607,7 +615,7 @@ module Interp {
   }
 
   function method InterpTernarySequences(expr: Expr, op: AST.TernaryOps.Sequences, v0: Value, v1: Value, v2: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op
       case SeqUpdate() => :- NeedValidIndex(expr, v0, v1);
@@ -620,7 +628,7 @@ module Interp {
   }
 
   function method InterpTernaryMultisets(expr: Expr, op: AST.TernaryOps.Multisets, v0: Value, v1: Value, v2: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op
       case MultisetUpdate() =>
@@ -630,7 +638,7 @@ module Interp {
   }
 
   function method InterpTernaryMaps(expr: Expr, op: AST.TernaryOps.Maps, v0: Value, v1: Value, v2: Value)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match op
       case MapUpdate() => :- Need(v0.Map?, Invalid(expr));
@@ -638,7 +646,7 @@ module Interp {
   }
 
   function method InterpDisplay(e: Expr, kind: Types.CollectionKind, argvs: seq<Value>)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
   {
     match kind
       case Map(_) => var m :- InterpMapDisplay(e, argvs); Success(V.Map(m))
@@ -662,14 +670,14 @@ module Interp {
   }
 
   function method AugmentContext(base: Context, vars: seq<string>, vals: seq<Value>)
-    : (ctx: Context)
+    : Context
     requires |vars| == |vals|
   {
     base + MapOfPairs(Seq.Zip(vars, vals))
   }
 
   function method InterpFunctionCall(e: Expr, env: Environment, fn: Value, argvs: seq<Value>)
-    : (r: PureInterpResult<Value>)
+    : PureInterpResult<Value>
     decreases env.fuel, e, 0
   {
     :- Need(env.fuel > 0, OutOfFuel(fn));
@@ -682,7 +690,7 @@ module Interp {
   }
 
   function method InterpBind(e: Expr, env: Environment, ctx: State, vars: seq<string>, vals: seq<Value>, body: Expr)
-    : (r: InterpResult<Value>)
+    : InterpResult<Value>
     requires body < e
     requires |vars| == |vals|
     decreases env.fuel, e, 0
