@@ -859,14 +859,13 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
       Seq.Map(f, ts)
     }
 
-    datatype Transformer'<!A, !B> =
+    datatype Transformer_<!A(!new), !B> =
       TR(f: A --> B, ghost Post: B -> bool)
-
-    predicate HasValidPC<A(!new), B>(tr: Transformer'<A, B>) {
-      forall a: A :: tr.f.requires(a) ==> tr.Post(tr.f(a))
+    {
+      ghost const Valid? := forall a | f.requires(a) :: Post(f(a))
     }
 
-    type Transformer<!A(!new), !B(0)> = tr: Transformer'<A, B> | HasValidPC(tr)
+    type Transformer<!A(!new), !B(0)> = tr: Transformer_<A, B> | tr.Valid?
       witness *
 
     type ExprTransformer = Transformer<Expr, Expr>
@@ -989,8 +988,8 @@ module {:extern "DafnyInDafny.Common"} DafnyCompilerCommon {
       }
 
       module NonRec refines Base {
-        // https://github.com/dafny-lang/dafny/issues/2107
-        // https://github.com/dafny-lang/dafny/issues/2109
+        // BUG(https://github.com/dafny-lang/dafny/issues/2107)
+        // BUG(https://github.com/dafny-lang/dafny/issues/2109)
         function method All_Expr(e: Expr, P: Expr -> bool) : (b: bool) {
           P(e) && forall e' | e' in e.Children() :: All_Expr(e', P)
         }
