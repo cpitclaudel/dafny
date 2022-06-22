@@ -191,7 +191,7 @@ module DafnyCompilerCommon.AST {
         | Apply(aop: ApplyOp, args: seq<Expr>)
         | Block(stmts: seq<Expr>)
         | Bind(vars: seq<string>, vals: seq<Expr>, body: Expr)
-        | If(cond: Expr, thn: Expr, els: Expr)
+        | If(cond: Expr, thn: Expr, els: Expr) // DISCUSS: Should this be a LazyOp?
       {
         function method Depth() : nat {
           1 + match this {
