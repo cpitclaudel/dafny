@@ -456,23 +456,23 @@ namespace Microsoft.Dafny {
 
       AddConstructorAxioms(dt, ctor, fn);
 
-      if (dt is IndDatatypeDecl) {
-        // Add Lit axiom:
-        // axiom (forall p0, ..., pn :: #dt.ctor(Lit(p0), ..., Lit(pn)) == Lit(#dt.ctor(p0, .., pn)));
-        List<Bpl.Variable> bvs;
-        List<Bpl.Expr> args;
-        CreateBoundVariables(ctor.Formals, out bvs, out args);
-        var litargs = new List<Bpl.Expr>();
-        foreach (Bpl.Expr arg in args) {
-          litargs.Add(Lit(arg));
-        }
+      // if (dt is IndDatatypeDecl) {
+      //   // Add Lit axiom:
+      //   // axiom (forall p0, ..., pn :: #dt.ctor(Lit(p0), ..., Lit(pn)) == Lit(#dt.ctor(p0, .., pn)));
+      //   List<Bpl.Variable> bvs;
+      //   List<Bpl.Expr> args;
+      //   CreateBoundVariables(ctor.Formals, out bvs, out args);
+      //   var litargs = new List<Bpl.Expr>();
+      //   foreach (Bpl.Expr arg in args) {
+      //     litargs.Add(Lit(arg));
+      //   }
 
-        Bpl.Expr lhs = FunctionCall(ctor.tok, ctor.FullName, predef.DatatypeType, litargs);
-        Bpl.Expr rhs = Lit(FunctionCall(ctor.tok, ctor.FullName, predef.DatatypeType, args), predef.DatatypeType);
-        Bpl.Expr q = BplForall(bvs, BplTrigger(lhs), Bpl.Expr.Eq(lhs, rhs));
-        var constructorLiteralAxiom = new Bpl.Axiom(ctor.tok, q, "Constructor literal");
-        AddOtherDefinition(fn, constructorLiteralAxiom);
-      }
+      //   Bpl.Expr lhs = FunctionCall(ctor.tok, ctor.FullName, predef.DatatypeType, litargs);
+      //   Bpl.Expr rhs = Lit(FunctionCall(ctor.tok, ctor.FullName, predef.DatatypeType, args), predef.DatatypeType);
+      //   Bpl.Expr q = BplForall(bvs, BplTrigger(lhs), Bpl.Expr.Eq(lhs, rhs));
+      //   var constructorLiteralAxiom = new Bpl.Axiom(ctor.tok, q, "Constructor literal");
+      //   AddOtherDefinition(fn, constructorLiteralAxiom);
+      // }
 
       // Injectivity axioms for normal arguments
       for (int i = 0; i < ctor.Formals.Count; i++) {
